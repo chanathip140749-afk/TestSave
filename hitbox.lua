@@ -1,15 +1,16 @@
 -- ==========================================
 -- 🛠️ ส่วนตั้งค่า (Configuration)
--- แก้ไขตรงนี้ได้ง่ายๆ เลยครับ
+-- ตั้งชื่อโฟลเดอร์มอนสเตอร์ตรงนี้ได้เลยครับ
 -- ==========================================
 getgenv().Config = {
     ["Folder Mon"] = {"Enemies", "Mobs", "Monsters"}, -- ชื่อโฟลเดอร์มอนสเตอร์ (ใส่ได้หลายชื่อ)
-    ["Instant Kill"] = true,                          -- เปิด/ปิด ระบบฆ่าอัตโนมัติ
-    ["Radius"] = 5000,                                  -- ระยะออร่าฆ่ามอนสเตอร์ (สตาร์ทที่ 50)
+    ["Bring Mobs"] = true,                           -- ดึงมอนสเตอร์มาล็อกไว้ตรงหน้าเพื่อให้ฟันโดน 100%
+    ["Instant Kill After Hit"] = true,               -- ฟัน 1 ทีตายทันที (เพื่อให้ระบบเกมแจก EXP และของ)
+    ["Radius"] = 60,                                 -- ระยะที่จะดึงมอนสเตอร์เข้ามาหาตัว
     
-    ["HitboxSize"] = Vector3.new(100, 100, 100),         -- ขนาดฮิตบ็อกซ์ที่ขยาย
-    ["HitboxColor"] = BrickColor.new("Really blue"),   -- สีของฮิตบ็อกซ์
-    ["HitboxTransparency"] = 0.7                      -- ความโปร่งใส
+    ["HitboxSize"] = Vector3.new(8, 8, 8),           -- ขนาดตัวมอนสเตอร์ตอนเปิด GUI
+    ["HitboxColor"] = BrickColor.new("Really blue"),
+    ["HitboxTransparency"] = 0.7
 }
 
 -- ==========================================
@@ -22,20 +23,20 @@ local LocalPlayer = Players.LocalPlayer
 
 local ORIGINAL_SIZE = Vector3.new(2, 2, 1)
 local active = false
-local targetsCache = {} -- ตัวเก็บรายชื่อมอนสเตอร์เพื่อลดอาการแลค
+local targetsCache = {}
 
 -- GUI Creation
 local ScreenGui = Instance.new("ScreenGui")
 local MainFrame = Instance.new("Frame")
 local ToggleButton = Instance.new("TextButton")
 
-ScreenGui.Name = "UltimateKillGui"
+ScreenGui.Name = "LegitFarmGui"
 ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 ScreenGui.ResetOnSpawn = false
 
 MainFrame.Name = "MainFrame"
 MainFrame.Parent = ScreenGui
-MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+MainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 MainFrame.BorderSizePixel = 0
 MainFrame.Position = UDim2.new(0.5, -100, 0.5, -50)
 MainFrame.Size = UDim2.new(0, 200, 0, 80)
@@ -47,7 +48,7 @@ ToggleButton.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
 ToggleButton.Size = UDim2.new(1, -20, 0, 40)
 ToggleButton.Position = UDim2.new(0, 10, 0, 20)
 ToggleButton.Font = Enum.Font.SourceSansBold
-ToggleButton.Text = "HACK: OFF"
+ToggleButton.Text = "FARM: OFF"
 ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 ToggleButton.TextSize = 18
 
@@ -68,7 +69,7 @@ UserInputService.InputChanged:Connect(function(input)
     end
 end)
 
--- 🔍 1. ฟังก์ชันค้นหามอนสเตอร์ในโฟลเดอร์ที่กำหนด (สแกนทุกๆ 1 วินาทีเพื่อไม่ให้เกมค้าง)
+-- 🔍 1. ลูปค้นหามอนสเตอร์ตามโฟลเดอร์ที่กำหนด
 task.spawn(function()
     while true do
         if active then
@@ -95,10 +96,9 @@ task.spawn(function()
     end
 end)
 
--- 🔴 2. ลูปทำงานฝั่ง Client (ขยาย Hitbox เพื่อความสะใจ/มองง่าย)
+-- 🔴 2. ลูปขยายตัวมอนสเตอร์ (ฝั่ง Client)
 RunService.RenderStepped:Connect(function()
     if not active then return end
-    
     pcall(function()
         local c = getgenv().Config
         for _, humanoid in ipairs(targetsCache) do
@@ -116,16 +116,16 @@ RunService.RenderStepped:Connect(function()
     end)
 end)
 
--- 💀 3. ลูปสำหรับ Instant Kill (ออร่าฆ่าเมื่อเข้าใกล้ระยะ)
+-- ⚡ 3. ลูปดึงมอนสเตอร์มาให้ฟัน + สั่ง Instant Kill หลังโดนดาเมจ
 task.spawn(function()
-    while task.wait(0.1) do
-        if active and getgenv().Config["Instant Kill"] then
+    while task.wait() do
+        if active then
             pcall(function()
                 local character = LocalPlayer.Character
                 local chrp = character and character:FindFirstChild("HumanoidRootPart")
                 if not chrp then return end
 
-                -- Bypass Simulation Radius ยึดสิทธิ์ Network
+                -- Bypass ยึดสิทธิ์ฟิสิกส์มอนสเตอร์มาไว้ที่เครื่องเรา
                 sethiddenproperty(LocalPlayer, "SimulationRadius", 112412400000)
                 sethiddenproperty(LocalPlayer, "MaxSimulationRadius", 112412400000)
 
@@ -134,9 +134,19 @@ task.spawn(function()
                         local hrp = humanoid.Parent:FindFirstChild("HumanoidRootPart")
                         if hrp then
                             local dist = (hrp.Position - chrp.Position).Magnitude
-                            -- ตรวจสอบระยะ ถ้าเข้าใกล้... สั่งตายทันที!
+                            
                             if dist <= getgenv().Config["Radius"] then
-                                humanoid.Health = 0
+                                -- [ฟีเจอร์ดึงมอน] ล็อกตัวมอนสเตอร์มาไว้ข้างหน้าผู้เล่น 4 ช่อง จะได้ฟันโดนแน่นอน
+                                if getgenv().Config["Bring Mobs"] then
+                                    hrp.CFrame = chrp.CFrame * CFrame.new(0, 0, -4)
+                                    hrp.Velocity = Vector3.new(0,0,0) -- ป้องกันมอนดีดกระเด็น
+                                end
+
+                                -- [ฟีเจอร์ฆ่าหลังฟัน] เช็คว่าผู้เล่นฟันโดนแล้วหรือยัง (เลือดลดต่ำกว่า Max)
+                                if getgenv().Config["Instant Kill After Hit"] and humanoid.Health < humanoid.MaxHealth then
+                                    task.wait(0.1) -- หน่วงเวลานิดนึงให้ Server มั่นใจว่าเราเป็นคนตีเพื่อแจกของ
+                                    humanoid.Health = 0 -- สั่งตายทันที!
+                                end
                             end
                         end
                     end
@@ -146,7 +156,7 @@ task.spawn(function()
     end
 end)
 
--- 🔄 4. ฟังก์ชันรีเซ็ตค่ามอนสเตอร์กลับเป็นปกติเวลาปิด GUI
+-- 🔄 4. รีเซ็ตค่ามอนสเตอร์ตอนปิดสคริปต์
 local function resetEverything()
     pcall(function()
         for _, humanoid in ipairs(targetsCache) do
@@ -165,14 +175,14 @@ local function resetEverything()
     targetsCache = {}
 end
 
--- ปุ่ม เปิด/ปิด
+-- ปุ่มเปิด/ปิด GUI
 ToggleButton.MouseButton1Click:Connect(function()
     active = not active
     if active then
-        ToggleButton.Text = "HACK: ON"
+        ToggleButton.Text = "FARM: ON"
         ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
     else
-        ToggleButton.Text = "HACK: OFF"
+        ToggleButton.Text = "FARM: OFF"
         ToggleButton.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
         resetEverything()
     end
