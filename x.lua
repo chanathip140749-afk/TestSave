@@ -5,7 +5,7 @@
 getgenv().Config = {
     ["Folder Mon"] = {"Enemies", "Mobs", "Monsters"}, -- ชื่อโฟลเดอร์มอนสเตอร์ (ใส่ได้หลายชื่อ)
     ["Instant Kill"] = true,                          -- เปิด/ปิด ระบบฆ่าอัตโนมัติ
-    ["Radius"] = 50,                                  -- ระยะออร่าฆ่ามอนสเตอร์ (สตาร์ทที่ 50)
+    ["Radius"] = 500000000,                                  -- ระยะออร่าฆ่ามอนสเตอร์ (สตาร์ทที่ 50)
     
     ["HitboxSize"] = Vector3.new(10, 10, 10),         -- ขนาดฮิตบ็อกซ์ที่ขยาย
     ["HitboxColor"] = BrickColor.new("Really blue"),   -- สีของฮิตบ็อกซ์
