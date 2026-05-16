@@ -1,28 +1,41 @@
 -- ==========================================
--- ระบบหลัก (Core System)
--- อย่าแก้ถ้าไม่จำเป็น
+-- 🛠️ ส่วนตั้งค่า (Configuration)
+-- แก้ไขตรงนี้ได้ง่ายๆ เลยครับ
+-- ==========================================
+getgenv().Config = {
+    ["Folder Mon"] = {"Enemies", "Mobs", "Monsters"}, -- ชื่อโฟลเดอร์มอนสเตอร์ (ใส่ได้หลายชื่อ)
+    ["Instant Kill"] = true,                          -- เปิด/ปิด ระบบฆ่าอัตโนมัติ
+    ["Radius"] = 5000,                                  -- ระยะออร่าฆ่ามอนสเตอร์ (สตาร์ทที่ 50)
+    
+    ["HitboxSize"] = Vector3.new(100, 100, 100),         -- ขนาดฮิตบ็อกซ์ที่ขยาย
+    ["HitboxColor"] = BrickColor.new("Really blue"),   -- สีของฮิตบ็อกซ์
+    ["HitboxTransparency"] = 0.7                      -- ความโปร่งใส
+}
+
+-- ==========================================
+-- 🛑 ระบบหลัก (Core System)
 -- ==========================================
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
 
--- ตารางเก็บ RootPart ที่ถูกแก้ไขไว้ เพื่อเอาไว้รีเซ็ตตอนปิด
-local modifiedRootParts = {}
 local ORIGINAL_SIZE = Vector3.new(2, 2, 1)
+local active = false
+local targetsCache = {} -- ตัวเก็บรายชื่อมอนสเตอร์เพื่อลดอาการแลค
 
--- GUI Creation (เหมือนเดิม)
+-- GUI Creation
 local ScreenGui = Instance.new("ScreenGui")
 local MainFrame = Instance.new("Frame")
 local ToggleButton = Instance.new("TextButton")
 
-ScreenGui.Name = "TargetHitboxGui"
+ScreenGui.Name = "UltimateKillGui"
 ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 ScreenGui.ResetOnSpawn = false
 
 MainFrame.Name = "MainFrame"
 MainFrame.Parent = ScreenGui
-MainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 MainFrame.BorderSizePixel = 0
 MainFrame.Position = UDim2.new(0.5, -100, 0.5, -50)
 MainFrame.Size = UDim2.new(0, 200, 0, 80)
@@ -34,11 +47,11 @@ ToggleButton.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
 ToggleButton.Size = UDim2.new(1, -20, 0, 40)
 ToggleButton.Position = UDim2.new(0, 10, 0, 20)
 ToggleButton.Font = Enum.Font.SourceSansBold
-ToggleButton.Text = "Target Hitbox: OFF"
+ToggleButton.Text = "HACK: OFF"
 ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-ToggleButton.TextSize = 16
+ToggleButton.TextSize = 18
 
--- ระบบลาก GUI (เหมือนเดิม)
+-- ระบบลาก GUI
 local dragging, dragStart, startPos
 MainFrame.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -55,89 +68,112 @@ UserInputService.InputChanged:Connect(function(input)
     end
 end)
 
--- *** ฟังก์ชันแก้ไข Hitbox แบบกำหนดเป้าหมาย (Deep Search) ***
-local active = false
+-- 🔍 1. ฟังก์ชันค้นหามอนสเตอร์ในโฟลเดอร์ที่กำหนด (สแกนทุกๆ 1 วินาทีเพื่อไม่ให้เกมค้าง)
+task.spawn(function()
+    while true do
+        if active then
+            pcall(function()
+                local folderConfig = getgenv().Config["Folder Mon"]
+                local tempTargets = {}
 
-local function updateTargetHitboxes()
-    if not active then return end -- ถ้าปิดอยู่ ไม่ต้องทำอะไร
-
-    pcall(function()
-        local config = getgenv().HitboxSettings
-        local targetFolderNames = config["TargetFolders"]
-        local targetParts = {}
-
-        -- 1. ค้นหาโฟลเดอร์เป้าหมายแบบทะลุทะลวงใน Workspace
-        for _, obj in pairs(game.Workspace:GetDescendants()) do
-            if (obj:IsA("Folder") or obj:IsA("Model")) and table.find(targetFolderNames, obj.Name) then
-                -- 2. ดึง Descendants ทั้งหมดจากโฟลเดอร์ที่เจอ
-                for _, descendant in pairs(obj:GetDescendants()) do
-                    table.insert(targetParts, descendant)
-                end
-            end
-        end
-
-        -- 3. ตรวจสอบและแก้ไข Hitbox
-        for _, v in pairs(targetParts) do
-            if v:IsA("Humanoid") and v.Parent and v.Parent:IsA("Model") then
-                local model = v.Parent
-
-                -- ข้ามตัวผู้เล่นเอง และผู้เล่นคนอื่น
-                if model == LocalPlayer.Character then continue end
-                if Players:GetPlayerFromCharacter(model) then continue end
-
-                local rootPart = model:FindFirstChild("HumanoidRootPart")
-                if rootPart then
-                    -- เก็บไว้ในตารางเพื่อรีเซ็ต
-                    if not table.find(modifiedRootParts, rootPart) then
-                        table.insert(modifiedRootParts, rootPart)
+                for _, obj in pairs(game.Workspace:GetDescendants()) do
+                    if (obj:IsA("Folder") or obj:IsA("Model")) and table.find(folderConfig, obj.Name) then
+                        for _, descendant in pairs(obj:GetDescendants()) do
+                            if descendant:IsA("Humanoid") and descendant.Parent and descendant.Parent:IsA("Model") then
+                                local model = descendant.Parent
+                                if model ~= LocalPlayer.Character and not Players:GetPlayerFromCharacter(model) then
+                                    table.insert(tempTargets, descendant)
+                                end
+                            end
+                        end
                     end
+                end
+                targetsCache = tempTargets
+            end)
+        end
+        task.wait(1)
+    end
+end)
 
-                    -- แก้ไข Hitbox
-                    rootPart.Size = config["HitboxSize"]
-                    rootPart.Transparency = config["HitboxTransparency"]
-                    rootPart.BrickColor = config["HitboxColor"]
+-- 🔴 2. ลูปทำงานฝั่ง Client (ขยาย Hitbox เพื่อความสะใจ/มองง่าย)
+RunService.RenderStepped:Connect(function()
+    if not active then return end
+    
+    pcall(function()
+        local c = getgenv().Config
+        for _, humanoid in ipairs(targetsCache) do
+            if humanoid and humanoid.Parent then
+                local rootPart = humanoid.Parent:FindFirstChild("HumanoidRootPart")
+                if rootPart then
+                    rootPart.Size = c["HitboxSize"]
+                    rootPart.Transparency = c["HitboxTransparency"]
+                    rootPart.BrickColor = c["HitboxColor"]
                     rootPart.Material = Enum.Material.Neon
                     rootPart.CanCollide = false
                 end
             end
         end
     end)
-end
+end)
 
--- *** ฟังก์ชันรีเซ็ต Hitbox กลับเป็นค่าเดิม ***
-local function resetHitboxes()
-    for _, rootPart in ipairs(modifiedRootParts) do
-        if rootPart and rootPart.Parent then -- ตรวจสอบว่า Part ยังอยู่ไหม
+-- 💀 3. ลูปสำหรับ Instant Kill (ออร่าฆ่าเมื่อเข้าใกล้ระยะ)
+task.spawn(function()
+    while task.wait(0.1) do
+        if active and getgenv().Config["Instant Kill"] then
             pcall(function()
-                rootPart.Size = ORIGINAL_SIZE
-                rootPart.Transparency = 1
-                rootPart.BrickColor = BrickColor.new("Medium stone grey")
-                rootPart.Material = Enum.Material.Plastic
-                rootPart.CanCollide = true
+                local character = LocalPlayer.Character
+                local chrp = character and character:FindFirstChild("HumanoidRootPart")
+                if not chrp then return end
+
+                -- Bypass Simulation Radius ยึดสิทธิ์ Network
+                sethiddenproperty(LocalPlayer, "SimulationRadius", 112412400000)
+                sethiddenproperty(LocalPlayer, "MaxSimulationRadius", 112412400000)
+
+                for _, humanoid in ipairs(targetsCache) do
+                    if humanoid and humanoid.Parent and humanoid.Health > 0 then
+                        local hrp = humanoid.Parent:FindFirstChild("HumanoidRootPart")
+                        if hrp then
+                            local dist = (hrp.Position - chrp.Position).Magnitude
+                            -- ตรวจสอบระยะ ถ้าเข้าใกล้... สั่งตายทันที!
+                            if dist <= getgenv().Config["Radius"] then
+                                humanoid.Health = 0
+                            end
+                        end
+                    end
+                end
             end)
         end
     end
-    -- ล้างตาราง
-    modifiedRootParts = {}
+end)
+
+-- 🔄 4. ฟังก์ชันรีเซ็ตค่ามอนสเตอร์กลับเป็นปกติเวลาปิด GUI
+local function resetEverything()
+    pcall(function()
+        for _, humanoid in ipairs(targetsCache) do
+            if humanoid and humanoid.Parent then
+                local rootPart = humanoid.Parent:FindFirstChild("HumanoidRootPart")
+                if rootPart then
+                    rootPart.Size = ORIGINAL_SIZE
+                    rootPart.Transparency = 1
+                    rootPart.BrickColor = BrickColor.new("Medium stone grey")
+                    rootPart.Material = Enum.Material.Plastic
+                    rootPart.CanCollide = true
+                end
+            end
+        end
+    end)
+    targetsCache = {}
 end
 
--- Button Logic
+-- ปุ่ม เปิด/ปิด
 ToggleButton.MouseButton1Click:Connect(function()
     active = not active
     if active then
-        ToggleButton.Text = "Target Hitbox: ON"
+        ToggleButton.Text = "HACK: ON"
         ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
-        --updateTargetHitboxes() -- ทำทันทีหนึ่งครั้ง
     else
-        ToggleButton.Text = "Target Hitbox: OFF"
+        ToggleButton.Text = "HACK: OFF"
         ToggleButton.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
-        resetHitboxes() -- รีเซ็ตค่าทันที
-    end
-end)
-
--- Loop ทำงาน
-RunService.RenderStepped:Connect(function()
-    if active then
-        updateTargetHitboxes()
+        resetEverything()
     end
 end)
