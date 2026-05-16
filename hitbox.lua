@@ -6,7 +6,7 @@ getgenv().Config = {
     ["Folder Mon"] = {"Enemies", "Mobs", "Monsters"}, -- ชื่อโฟลเดอร์มอนสเตอร์ (ใส่ได้หลายชื่อ)
     ["Bring Mobs"] = true,                           -- ดึงมอนสเตอร์มาล็อกไว้ตรงหน้าเพื่อให้ฟันโดน 100%
     ["Instant Kill After Hit"] = true,               -- ฟัน 1 ทีตายทันที (เพื่อให้ระบบเกมแจก EXP และของ)
-    ["Radius"] = 60,                                 -- ระยะที่จะดึงมอนสเตอร์เข้ามาหาตัว
+    ["Radius"] = 99999999999999999999,                                 -- ระยะที่จะดึงมอนสเตอร์เข้ามาหาตัว
     
     ["HitboxSize"] = Vector3.new(8, 8, 8),           -- ขนาดตัวมอนสเตอร์ตอนเปิด GUI
     ["HitboxColor"] = BrickColor.new("Really blue"),
